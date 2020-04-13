@@ -1,0 +1,134 @@
+<!--
+
+@Author : Pradeep CH
+
+-->
+<html>
+    <link rel="stylesheet" href="./bootstrap.min.css"> 
+  <body>
+    <div class="container">
+        <h2>Git Search</h2> 
+        <div id="example">
+            <ul class="nav nav-tabs">
+              <li :class="selectedindex==0?'active':''" @click="selectedindex=0"><a href="#">Search</a></li>
+              <li :class="selectedindex==1?'active':''" @click="selectedindex=1"><a href="#">Bookmarks ({{bookmarks.length}})</a></li> 
+            </ul>
+            <div v-show="selectedindex==0">
+                <p></p>
+                <input type="text" placeholder="enter your search keyword" v-model="searchword" ></input>            
+                <input :disabled="!searchword || loading" type="button" value="search" @click="dosearch(true,$event)" ></input>
+                <entryview :items="items" :bookmarks="bookmarks" @bookmarkchanged="bookmarkchanged" ></entryview>
+                <div v-show="totalrec>0">
+			Showing {{perpage*(currentpage-1)}}-{{Math.min(perpage*currentpage,totalrec)}} of {{totalrec}} records. 
+			<center><a href="#" @click="loadnextpage($event)" v-show="perpage*currentpage<totalrec">next page>></a></center>
+		</div>
+            </div>
+            <div v-if="selectedindex==1">
+                <entryview :items="bookmarks" :bookmarks="bookmarks" @bookmarkchanged="bookmarkchanged" ></entryview>
+                <div v-show="!bookmarks || bookmarks.length==0"><center >No bookmarks</center></div>
+            </div>
+            <center v-if="loading">Loading...</center>
+        </div>
+    </div>
+    <script src="./vue.js"></script>
+    <script src="./jquery.min.js"></script>
+    <script src="./underscore.js"></script>
+
+    <script>
+	//component rgistration : to list the records
+        (function(){
+            const template = '<div v-if="items && items.length>0" >\
+				<table class="table table-striped">\
+                                    <thead>\
+                                      <tr>\
+                                        <th>Name</th>\
+                                        <th>Description</th>\
+                                        <th>User</th>\
+                                        <th>Bookmark</th>\
+                                      </tr>\
+                                    </thead>\
+                                    <tbody>\
+                                      <tr v-for="item in items">\
+                                        <td><a :href="item.html_url" target="_blank">{{item.name}}</a></td>\
+                                        <td>{{item.description}}</td>\
+                                        <td><img style="-webkit-user-select: none;width:30px;height:30px;" :src="item.owner.avatar_url"></img>{{item.owner.login}}</td>\
+                                        <td><input type="checkbox" :checked="bookmarknames.includes(item.name)" @change="slectionchanged(item,$event)"/></td>\
+                                      </tr>\
+                                    </tbody>\
+                                  </table>\
+				</div>';
+            const component = {
+                    props:['items','bookmarks'],
+                    data:function(){
+                        return {
+                            bookmarknames:[]
+                        }
+                    },
+		    mounted:function(){			
+                            this.fetchbookmarks();
+		    },
+                    watch:{
+                        bookmarks:function(){
+                            this.fetchbookmarks();
+                        },
+                        items:function(){
+                            this.fetchbookmarks();
+                        }
+                    },
+                    template:template,
+                    methods:{
+			fetchbookmarks:function(){
+                            this.bookmarknames = _.pluck(this.bookmarks,'name');
+			    console.log("bookmark names",this.bookmarknames);
+			},
+                        slectionchanged:function(f,e){
+                           this.$emit('bookmarkchanged',f,e.target.checked);
+                        }
+                    }
+            };
+            Vue.component('entryview',component);
+        })();
+        
+        new Vue({
+            el: '#example',
+            data: { searchword:"sample",items:[],bookmarks:[],loading:false,selectedindex:0,totalrec:0,currentpage:1,perpage:50},
+            methods:{
+                "dosearch":function(r,e){
+		    if(e){
+			e.preventDefault();
+		    }
+                    var self= this;
+                    self.loading=true;
+                    self.totalrec=0;
+                    var searchword= this.searchword;
+                    //TODO replace space with + //ignore as it is handled
+		    if(r){
+                       self.items=[];
+		       self.currentpage=1;
+                    }
+                    $.ajax({
+                        url: "https://api.github.com/search/repositories?q="+searchword+"+in:name+language:JavaScript+language:php&per_page="+self.perpage+"&page="+self.currentpage, 
+                        success: function(result){
+                            self.items= result.items;
+                            self.totalrec=result.total_count;
+                            self.loading=false;
+                        }
+                    });
+                },
+                bookmarkchanged:function(f,s){
+                    if(!s)
+                        this.bookmarks = _.filter(this.bookmarks,function(e){
+                                        	return e.name!=f.name;
+                            		});
+                    else 
+                        this.bookmarks.push(f);
+                },
+		loadnextpage:function(e){
+			this.currentpage +=1;
+			this.dosearch(false,e);
+		}
+            }
+        }); 
+    </script>
+  </body>
+</html>
